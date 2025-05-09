@@ -157,9 +157,9 @@ Với mỗi vùng (region), tổng số vận động viên tham gia là bao nhi
 
 Với mỗi năm, vùng nào có nhiều huy chương nhất?
 
-Với mỗi quốc gia, xác định môn thể thao họ giành được huy chương nhiều nhất.
 
-Quốc gia nào có tỷ lệ huy chương trên số vận động viên cao nhất?
+
+
 */
 SELECT DISTINCT * FROM noc_regions
 SELECT * FROM cleaned_athlete_events
@@ -205,3 +205,121 @@ FROM MedalCount mc
 JOIN MaxMedalCount mmc
 ON mc.year = mmc.year AND mc.[No Medals] = mmc.Total
 ORDER BY mc.Year
+
+--Với mỗi quốc gia, xác định môn thể thao họ giành được huy chương nhiều nhất.
+
+WITH MedalCount AS(
+	SELECT 
+		n.region,
+		a.sport,
+		COUNT(CASE WHEN Medal IN ('Gold', 'Silver', 'Bronze') THEN Medal END ) AS Total
+	FROM cleaned_athlete_events a
+	JOIN noc_regions n ON a.NOC = n.NOC
+	GROUP BY n.region, a.sport
+),
+MaxMedalCount AS (
+	SELECT 
+		region,
+		MAX(Total) AS [No Medals]
+	FROM MedalCount
+	GROUP BY region
+)
+SELECT 
+	mc.region,
+	mc.sport,
+	mmc.[No Medals]
+FROM MedalCount mc
+JOIN MaxMedalCount mmc
+ON mc.region = mmc.region AND mc.Total = mmc.[No Medals]
+WHERE mmc.[No Medals] > 0
+ORDER BY mc.region
+
+
+--Quốc gia nào có tỷ lệ huy chương trên số vận động viên cao nhất?
+
+WITH AthletesPerNoc AS (
+	SELECT 
+		NOC,
+		COUNT(DISTINCT ID) AS Athletes
+	FROM cleaned_athlete_events
+	GROUP BY NOC
+),
+MedalDetails AS (
+	SELECT ID, NOC, Medal
+	FROM cleaned_athlete_events
+	WHERE Medal IN ('Gold', 'Silver', 'Bronze')
+),
+MedalCount AS (
+	SELECT 
+		NOC,
+		COUNT(*) AS Medals
+	FROM MedalDetails
+	GROUP BY NOC
+)
+SELECT 
+	r.NOC,
+	r.region,
+	ISNULL(mc.Medals, 0) AS TotalMedals,
+	CAST(ISNULL(mc.Medals, 0) AS FLOAT) / a.Athletes AS Rate
+FROM AthletesPerNoc a
+LEFT JOIN MedalCount mc ON a.NOC = mc.NOC
+JOIN noc_regions r ON r.NOC = a.NOC
+WHERE a.Athletes > 0
+ORDER BY Rate DESC;
+
+SELECT SUM([No Medals])
+FROM (
+	SELECT ID, NOC, COUNT (Medal) AS [No Medals]
+	FROM cleaned_athlete_events 
+	WHERE NOC = 'USA' AND Medal IN ('Gold',  'Silver', 'Bronze')
+	GROUP BY ID, NOC
+) AS Result
+
+SELECT DISTINCT ID, NOC, Medal AS [No Medals]
+FROM cleaned_athlete_events
+WHERE NOC = 'USA' AND Medal IN ('Gold',  'Silver', 'Bronze') 
+--GROUP BY ID, NOC
+ORDER BY [No Medals] DESC
+
+
+SELECT COUNT(*) 
+FROM (
+	SELECT DISTINCT ID, Event, Medal
+	FROM cleaned_athlete_events
+	WHERE NOC = 'USA' AND Medal IN ('Gold', 'Silver', 'Bronze')
+) AS TrueMedals
+
+WITH AthletesPerNoc AS (
+	SELECT 
+		NOC,
+		COUNT(DISTINCT ID) AS Athletes
+	FROM cleaned_athlete_events
+	GROUP BY NOC
+),
+MedalCount AS (
+	SELECT 
+		NOC,
+		COUNT(DISTINCT CAST(ID AS VARCHAR) + '_' + Event + '_' + Medal) AS Medals
+	FROM cleaned_athlete_events
+	WHERE Medal IN ('Gold', 'Silver', 'Bronze')
+	GROUP BY NOC
+)
+SELECT 
+	r.NOC,
+	r.region,
+	ISNULL(mc.Medals, 0) AS TotalMedals,
+	CAST(ISNULL(mc.Medals, 0) AS FLOAT) / a.Athletes AS Rate
+FROM AthletesPerNoc a
+LEFT JOIN MedalCount mc ON mc.NOC = a.NOC
+JOIN noc_regions r ON r.NOC = a.NOC
+WHERE a.Athletes > 0
+ORDER BY Rate DESC;
+
+
+SELECT 
+    COUNT(*) AS TotalMedals,
+    SUM(CASE WHEN Medal = 'Gold' THEN 1 ELSE 0 END) AS Gold,
+    SUM(CASE WHEN Medal = 'Silver' THEN 1 ELSE 0 END) AS Silver,
+    SUM(CASE WHEN Medal = 'Bronze' THEN 1 ELSE 0 END) AS Bronze
+FROM cleaned_athlete_events
+WHERE NOC = 'USA' AND Medal IN ('Gold', 'Silver', 'Bronze');
