@@ -137,3 +137,75 @@ FROM athlete_events
 SELECT TOP 10
 	* 
 FROM cleaned_athlete_events
+go 
+--CREATE FUNCTION get_year (@game nvarchar(50)
+--RETURNS int
+--AS
+--BEGIN 
+go 
+----
+SELECT 
+	DISTINCT Games,
+	DENSE_RANK() OVER (ORDER BY Games) AS date_times 
+FROM cleaned_athlete_events
+----
+SELECT 
+	Games, 
+	ID, 
+	ROW_NUMBER() OVER (PARTITION BY ID ORDER BY Games) AS rn
+FROM cleaned_athlete_events
+
+--ID, name, total medals of athlete has max medal count each game 
+--
+SELECT * FROM cleaned_athlete_events
+go
+WITH Medal_count AS(
+	SELECT 
+		DISTINCT ID,
+		Games,
+		COUNT (CASE WHEN Medal != 'None' THEN Medal END) AS Total
+	FROM cleaned_athlete_events
+	GROUP BY ID, Games
+),
+Max_medal_count AS (
+	SELECT 
+		Games, 
+		MAX(Total) AS [Max_medal_count]
+	FROM Medal_count
+	GROUP BY Games 
+)
+SELECT 
+	mc.ID,
+	mmc.Games,
+	mmc.[Max_medal_count] AS Medals,
+	ROW_NUMBER() OVER (PARTITION BY mmc.Games ORDER BY mmc.[Max_medal_count]) as rn
+FROM Medal_count mc
+JOIN Max_medal_count mmc ON mmc.Games = mc.Games 
+						AND mmc.[Max_medal_count] = mc.Total
+
+with Medal_count as (
+	select 
+		id,
+		name, 
+		noc,
+		count(case when medal != 'None' then 1 end) as total
+	from cleaned_athlete_events
+	group by id, name, noc
+),
+ranked_athletes as(
+	select 
+		*,
+		ROW_NUMBER() over(partition by noc order by total desc, name) as rn
+	from Medal_count
+)
+select 
+	id, 
+	name, 
+	noc,
+	total
+from ranked_athletes 
+where rn = 1
+order by total desc
+
+
+select distinct noc from cleaned_athlete_events
